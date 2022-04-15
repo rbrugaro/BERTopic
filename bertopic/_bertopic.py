@@ -20,6 +20,7 @@ from typing import List, Tuple, Union, Mapping, Any
 # Models
 import hdbscan
 from umap import UMAP
+import umap.plot
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
@@ -33,6 +34,10 @@ from bertopic import plotting
 
 # Visualization
 import plotly.graph_objects as go
+
+#plotting libraries for umap
+import matplotlib.pyplot as plt
+from bokeh.plotting import show, save, output_notebook, output_file
 
 logger = MyLogger("WARNING")
 
@@ -161,8 +166,10 @@ class BERTopic:
                                              n_components=5,
                                              min_dist=0.0,
                                              metric='cosine',
+                                             #random_state=42,
                                              low_memory=self.low_memory)
 
+#metric='hellinger', #random_state=42
         # HDBSCAN
         self.hdbscan_model = hdbscan_model or hdbscan.HDBSCAN(min_cluster_size=self.min_topic_size,
                                                               metric='euclidean',
@@ -297,8 +304,18 @@ class BERTopic:
             y, embeddings = self._guided_topic_modeling(embeddings)
         umap_embeddings = self._reduce_dimensionality(embeddings, y)
 
+        print(f'document embedding size {embeddings.shape}')
+        print(f'UMAP embedding size {umap_embeddings.shape}')
+
+        #Plotting is currently only implemented for 2D embeddings
+        #need to use .fit inside _reduce_dimensionality to return a UMAP object for the plotting
+        #umap.plot.points(umap_embeddings)
+        #plt.show()
+        #plt.savefig("umap.png")
+
         # Cluster UMAP embeddings with HDBSCAN
         documents, probabilities = self._cluster_embeddings(umap_embeddings, documents)
+        #print(documents, probabilities)
 
         # Sort and Map Topic IDs by their frequency
         if not self.nr_topics:
@@ -314,7 +331,7 @@ class BERTopic:
         self._map_representative_docs(original_topics=True)
         probabilities = self._map_probabilities(probabilities, original_topics=True)
         predictions = documents.Topic.to_list()
-
+        #print(predictions)
         return predictions, probabilities
 
     def transform(self,
@@ -1374,8 +1391,9 @@ class BERTopic:
                                    metric='hellinger',
                                    low_memory=self.low_memory).fit(embeddings, y=y)
         else:
-            self.umap_model.fit(embeddings, y=y)
+            self.umap_model.fit(embeddings, y=y) #entering here
         umap_embeddings = self.umap_model.transform(embeddings)
+        #umap_embeddings = self.umap_model.fit(embeddings) #to use with plotting although only works for 2D
         logger.info("Reduced dimensionality with UMAP")
         return np.nan_to_num(umap_embeddings)
 
@@ -1461,6 +1479,7 @@ class BERTopic:
         self.topic_names = {key: f"{key}_" + "_".join([word[0] for word in values[:4]])
                             for key, values in
                             self.topics.items()}
+        #print(self.topic_names)
 
     def _save_representative_docs(self, documents: pd.DataFrame):
         """ Save the most representative docs (3) per topic
